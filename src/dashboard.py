@@ -246,6 +246,71 @@ def api_cost_summary():
     }
 
 
+def api_daily_history(days=14):
+    """最近N天每日概览（每天有哪些会话，做了什么）"""
+    db = get_db()
+    results = []
+    for i in range(days - 1, -1, -1):
+        d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        nd = (datetime.strptime(d, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # 会话摘要
+        sessions = db.execute(
+            "SELECT session_id, project, topic, tool_calls, printf('%.2f', total_cost_usd) as cost, start_time FROM session_summaries WHERE date = ? ORDER BY start_time",
+            (d,)
+        ).fetchall()
+
+        # 基础统计
+        stats = db.execute(
+            "SELECT COUNT(*) as sess, COALESCE(SUM(total_tools),0) as tools FROM sessions WHERE start_time >= ? AND start_time < ?",
+            (f"{d}T00:00:00", f"{nd}T00:00:00")
+        ).fetchone()
+
+        # git提交
+        report = db.execute(
+            "SELECT total_commits, total_files_changed FROM daily_reports WHERE date = ?", (d,)
+        ).fetchone()
+
+        # token成本
+        token = db.execute(
+            "SELECT COALESCE(total_cost_usd,0) as cost FROM token_daily WHERE date = ?", (d,)
+        ).fetchone()
+
+        if not sessions and (stats["sess"] == 0):
+            continue
+
+        results.append({
+            "date": d,
+            "sessions": [dict(s) for s in sessions],
+            "session_count": stats["sess"],
+            "tool_uses": stats["tools"],
+            "commits": report["total_commits"] if report else 0,
+            "files_changed": report["total_files_changed"] if report else 0,
+            "cost": float(token["cost"]) if token else 0
+        })
+
+    db.close()
+    return list(reversed(results))  # 最新日期在前
+
+
+def api_session_detail(session_id):
+    """单个会话详情"""
+    db = get_db()
+    summary = db.execute(
+        "SELECT * FROM session_summaries WHERE session_id = ?", (session_id,)
+    ).fetchone()
+    tools = db.execute(
+        "SELECT tool_name, COUNT(*) as cnt FROM tool_uses WHERE session_id = ? GROUP BY tool_name ORDER BY cnt DESC",
+        (session_id,)
+    ).fetchall()
+    db.close()
+    if summary:
+        result = dict(summary)
+        result["tool_breakdown"] = [dict(t) for t in tools]
+        return result
+    return {"error": "session not found"}
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -274,6 +339,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "/api/models": lambda: api_model_breakdown(params.get("date", [today])[0]),
             "/api/top-sessions": lambda: api_top_sessions(int(params.get("limit", ["10"])[0])),
             "/api/cost-summary": lambda: api_cost_summary(),
+            "/api/daily-history": lambda: api_daily_history(int(params.get("days", ["14"])[0])),
+            "/api/session-detail": lambda: api_session_detail(params.get("id", [""])[0]),
         }
 
         if parsed.path in api_routes:

@@ -217,17 +217,19 @@ def generate_daily_report(date_str=None):
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
-    # 先同步token数据
-    try:
-        token_analyzer = os.path.join(os.path.dirname(__file__), '..', 'src', 'token_analyzer.py')
-        if os.path.exists(token_analyzer):
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("token_analyzer", token_analyzer)
-            ta = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(ta)
-            ta.sync_all()
-    except Exception as e:
-        print(f"Token同步跳过: {e}")
+    # 先同步token数据和会话摘要
+    base_dir = os.path.join(os.path.dirname(__file__), '..', 'src')
+    for module_name in ['token_analyzer', 'session_summarizer']:
+        try:
+            mod_path = os.path.join(base_dir, f'{module_name}.py')
+            if os.path.exists(mod_path):
+                import importlib.util
+                spec = importlib.util.spec_from_file_location(module_name, mod_path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.sync_all()
+        except Exception as e:
+            print(f"{module_name}同步跳过: {e}")
 
     report = f"# 日报 {date_str}\n\n"
 
