@@ -1,0 +1,12 @@
+{
+  "reviews": [
+    {
+      "date": "2026-03-17",
+      "perspectives": [
+        "product",
+        "customer"
+      ],
+      "findingSummary": "(findings will be filled by the AI after review execution)"
+    }
+  ]
+}

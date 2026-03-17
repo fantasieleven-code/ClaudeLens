@@ -148,6 +148,72 @@
     <div id="contributionBars" class="space-y-2"></div>
   </div>
 
+  <!-- Token 成本分析 -->
+  <div class="fade-in">
+    <div class="flex items-center gap-2 mb-4 mt-2">
+      <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <h2 class="text-sm font-semibold text-slate-300 uppercase tracking-wider">Token 成本分析</h2>
+    </div>
+
+    <!-- 成本KPI卡片 -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">今日成本</div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xs text-slate-500">$</span>
+          <span id="costToday" class="text-xl font-bold text-amber-400">--</span>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">本周成本</div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xs text-slate-500">$</span>
+          <span id="costWeek" class="text-xl font-bold text-slate-200">--</span>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">本月成本</div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xs text-slate-500">$</span>
+          <span id="costMonth" class="text-xl font-bold text-slate-200">--</span>
+        </div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">总成本</div>
+        <div class="flex items-baseline gap-1">
+          <span class="text-xs text-slate-500">$</span>
+          <span id="costTotal" class="text-xl font-bold text-slate-200">--</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <!-- 成本趋势图 -->
+      <div class="card p-5">
+        <h3 class="text-sm font-medium text-slate-400 mb-4">近7天成本趋势</h3>
+        <canvas id="costTrendChart" height="200"></canvas>
+      </div>
+
+      <!-- Token分解 -->
+      <div class="card p-5">
+        <h3 class="text-sm font-medium text-slate-400 mb-4">今日Token分解</h3>
+        <div id="tokenBreakdown" class="space-y-3">
+          <div class="text-sm text-slate-600">暂无数据</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 高成本会话 -->
+    <div class="card p-5 mt-4">
+      <h3 class="text-sm font-medium text-slate-400 mb-4">高成本会话 Top 5</h3>
+      <div id="topSessions" class="space-y-2">
+        <div class="text-sm text-slate-600">暂无数据</div>
+      </div>
+    </div>
+  </div>
+
   <!-- 日报内容 -->
   <div class="card p-5 fade-in">
     <h3 class="text-sm font-medium text-slate-400 mb-4">日报详情</h3>
@@ -171,6 +237,7 @@ const TOOL_COLORS = {
 const DEFAULT_COLOR = '#64748B';
 
 let trendChart = null;
+let costTrendChart = null;
 
 function getColor(tool) {
   return TOOL_COLORS[tool] || DEFAULT_COLOR;
@@ -200,14 +267,19 @@ async function fetchJSON(url) {
 async function refresh() {
   const date = document.getElementById('dateSelect').value;
 
-  const [summary, tools, timeline, trend, projects, report, weekly] = await Promise.all([
+  const [summary, tools, timeline, trend, projects, report, weekly, tokens, costTrend, models, topSessions, costSummary] = await Promise.all([
     fetchJSON(`/api/summary?date=${date}`),
     fetchJSON(`/api/tools?date=${date}`),
     fetchJSON(`/api/timeline?date=${date}`),
     fetchJSON(`/api/trend?days=7`),
     fetchJSON(`/api/projects?date=${date}`),
     fetchJSON(`/api/report?date=${date}`),
-    fetchJSON(`/api/weekly`)
+    fetchJSON(`/api/weekly`),
+    fetchJSON(`/api/tokens?date=${date}`),
+    fetchJSON(`/api/token-trend?days=7`),
+    fetchJSON(`/api/models?date=${date}`),
+    fetchJSON(`/api/top-sessions?limit=5`),
+    fetchJSON(`/api/cost-summary`)
   ]);
 
   // KPI
@@ -325,6 +397,79 @@ async function refresh() {
   } else {
     rc.innerHTML = '<div class="text-slate-600">暂无日报 — 运行 python3 scripts/daily-summary.py 生成</div>';
   }
+
+  // === Token 成本 ===
+  // 成本KPI
+  document.getElementById('costToday').textContent = costSummary.today_cost.toFixed(2);
+  document.getElementById('costWeek').textContent = costSummary.week_cost.toFixed(2);
+  document.getElementById('costMonth').textContent = costSummary.month_cost.toFixed(2);
+  document.getElementById('costTotal').textContent = costSummary.total_cost.toFixed(2);
+
+  // 成本趋势图
+  renderCostTrend(costTrend);
+
+  // Token分解
+  const tb = document.getElementById('tokenBreakdown');
+  if (tokens.message_count > 0) {
+    const items = [
+      { label: 'Input', value: tokens.total_input, color: '#3B82F6' },
+      { label: 'Output', value: tokens.total_output, color: '#F59E0B' },
+      { label: 'Cache Write', value: tokens.total_cache_write, color: '#8B5CF6' },
+      { label: 'Cache Read', value: tokens.total_cache_read, color: '#10B981' },
+    ];
+    const maxVal = Math.max(...items.map(i => i.value), 1);
+    tb.innerHTML = `<div class="text-xs text-slate-500 mb-2">${tokens.message_count} 条消息 · $${tokens.total_cost_usd.toFixed(2)}</div>` +
+      items.map(i => {
+        const pct = Math.max((i.value / maxVal) * 100, 2);
+        const formatted = i.value >= 1000000 ? (i.value/1000000).toFixed(1)+'M' : i.value >= 1000 ? (i.value/1000).toFixed(0)+'K' : i.value;
+        return `<div class="flex items-center gap-3">
+          <div class="w-20 text-xs text-slate-400 text-right shrink-0">${i.label}</div>
+          <div class="flex-1 bg-slate-800 rounded overflow-hidden">
+            <div class="tool-bar" style="width:${pct}%;background:${i.color}"></div>
+          </div>
+          <div class="w-12 text-xs text-slate-500 text-right">${formatted}</div>
+        </div>`;
+      }).join('');
+
+    // 模型分解
+    if (models.length > 0) {
+      tb.innerHTML += '<div class="text-xs text-slate-500 mt-4 mb-2">模型分解</div>' +
+        models.map(m => {
+          const name = (m.model || 'unknown').replace('claude-', '').replace('-4-6', ' 4.6').replace('-4-5-20251001', ' 4.5');
+          return `<div class="flex items-center justify-between text-xs">
+            <span class="text-slate-400">${name}</span>
+            <span class="text-slate-500">${m.msgs}条 · $${m.cost.toFixed(2)}</span>
+          </div>`;
+        }).join('');
+    }
+  } else {
+    tb.innerHTML = '<div class="text-sm text-slate-600">暂无数据 — 运行 python3 src/token_analyzer.py 同步</div>';
+  }
+
+  // 高成本会话
+  const ts = document.getElementById('topSessions');
+  if (topSessions.length > 0) {
+    ts.innerHTML = `<div class="grid gap-2">` +
+      topSessions.map((s, i) => {
+        const sid = s.session_id.substring(0, 12);
+        const tokens = s.total_tokens >= 1000000 ? (s.total_tokens/1000000).toFixed(1)+'M' : (s.total_tokens/1000).toFixed(0)+'K';
+        return `<div class="flex items-center justify-between py-1.5 px-3 rounded-lg ${i === 0 ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-slate-800/50'}">
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-mono ${i === 0 ? 'text-amber-400' : 'text-slate-500'}">#${i+1}</span>
+            <div>
+              <div class="text-xs ${i === 0 ? 'text-amber-300' : 'text-slate-400'}">${s.project || 'unknown'}</div>
+              <div class="text-xs text-slate-600">${s.date} · ${sid}</div>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs font-medium ${i === 0 ? 'text-amber-400' : 'text-slate-300'}">$${s.cost.toFixed(2)}</div>
+            <div class="text-xs text-slate-600">${tokens} · ${s.msgs}条</div>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+  } else {
+    ts.innerHTML = '<div class="text-sm text-slate-600">暂无数据</div>';
+  }
 }
 
 function renderTrend(data) {
@@ -370,6 +515,53 @@ function renderTrend(data) {
         },
         y: {
           ticks: { color: '#64748B', font: { size: 10 } },
+          grid: { color: 'rgba(30,41,59,0.5)' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+function renderCostTrend(data) {
+  const ctx = document.getElementById('costTrendChart').getContext('2d');
+  if (costTrendChart) costTrendChart.destroy();
+
+  costTrendChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.date.substring(5)),
+      datasets: [{
+        label: '成本 ($)',
+        data: data.map(d => d.total_cost_usd),
+        backgroundColor: data.map(d => d.total_cost_usd > 0 ? 'rgba(245,158,11,0.6)' : 'rgba(245,158,11,0.1)'),
+        borderColor: '#F59E0B',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `$${ctx.raw.toFixed(2)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748B', font: { size: 10 } },
+          grid: { display: false }
+        },
+        y: {
+          ticks: {
+            color: '#64748B',
+            font: { size: 10 },
+            callback: v => '$' + v.toFixed(0)
+          },
           grid: { color: 'rgba(30,41,59,0.5)' },
           beginAtZero: true
         }

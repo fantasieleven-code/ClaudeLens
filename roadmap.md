@@ -49,17 +49,23 @@
 
 ---
 
-## Phase 3: Token 用量分析（ccusage 集成）
+## Phase 3: Token 用量分析（已完成）
 
 ### 3.1 JSONL 解析
-- [ ] 解析 `~/.claude/projects/*/` 下的 session JSONL 文件
-- [ ] 提取 token 用量（input_tokens, output_tokens, cache_read/write）
-- [ ] 按会话、按天聚合写入 SQLite（token_usage 表）
+- [x] `src/token_analyzer.py` — 解析所有 `~/.claude/projects/*/` 下的 JSONL 文件
+- [x] 提取 token 用量（input_tokens, output_tokens, cache_creation, cache_read）
+- [x] 按会话、按天聚合写入 SQLite（token_usage + token_daily 表）
+- [x] 增量同步（通过 message_id 去重，不重复解析）
+- [x] 日报生成时自动触发 token 同步
 
 ### 3.2 成本估算
-- [ ] 按模型定价计算每日/每周/每月成本
-- [ ] 成本趋势图表
-- [ ] 高成本会话预警
+- [x] 按模型定价计算（Opus/Sonnet/Haiku 各有独立定价）
+- [x] 成本趋势柱状图（近7天）
+- [x] 今日/本周/本月/总计 成本KPI卡片
+- [x] Token分解可视化（Input/Output/Cache Write/Cache Read）
+- [x] 按模型分解（哪个模型花钱最多）
+- [x] 高成本会话 Top 5 排行（带项目名、会话ID、成本）
+- [x] 日报中增加 Token 成本摘要section
 
 ---
 

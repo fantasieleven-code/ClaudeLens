@@ -174,6 +174,78 @@ def api_weekly_compare():
     return {"this_week": this_week, "last_week": last_week}
 
 
+def api_tokens(date_str):
+    """当日token用量"""
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM token_daily WHERE date = ?", (date_str,)
+    ).fetchone()
+    db.close()
+    if row:
+        return dict(row)
+    return {"date": date_str, "total_input": 0, "total_output": 0, "total_cache_write": 0, "total_cache_read": 0, "total_cost_usd": 0, "message_count": 0}
+
+
+def api_token_trend(days):
+    """最近N天token成本趋势"""
+    db = get_db()
+    results = []
+    for i in range(days - 1, -1, -1):
+        d = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        row = db.execute("SELECT * FROM token_daily WHERE date = ?", (d,)).fetchone()
+        if row:
+            results.append(dict(row))
+        else:
+            results.append({"date": d, "total_input": 0, "total_output": 0, "total_cache_write": 0, "total_cache_read": 0, "total_cost_usd": 0, "message_count": 0})
+    db.close()
+    return results
+
+
+def api_model_breakdown(date_str):
+    """按模型分解"""
+    db = get_db()
+    rows = db.execute(
+        "SELECT model, SUM(input_tokens) as input_t, SUM(output_tokens) as output_t, SUM(cache_write_tokens) as cache_w, SUM(cache_read_tokens) as cache_r, ROUND(SUM(cost_usd),2) as cost, COUNT(*) as msgs FROM token_usage WHERE date = ? GROUP BY model ORDER BY cost DESC",
+        (date_str,)
+    ).fetchall()
+    db.close()
+    return [dict(r) for r in rows]
+
+
+def api_top_sessions(limit=10):
+    """成本最高的会话"""
+    db = get_db()
+    rows = db.execute(
+        "SELECT session_id, project, MIN(date) as date, ROUND(SUM(cost_usd),2) as cost, SUM(input_tokens+output_tokens) as total_tokens, COUNT(*) as msgs FROM token_usage GROUP BY session_id ORDER BY cost DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    db.close()
+    return [dict(r) for r in rows]
+
+
+def api_cost_summary():
+    """总体成本概览"""
+    db = get_db()
+    total = db.execute("SELECT COALESCE(SUM(total_cost_usd),0) as cost, COALESCE(SUM(message_count),0) as msgs, COUNT(*) as days FROM token_daily").fetchone()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today = db.execute("SELECT COALESCE(total_cost_usd,0) as cost FROM token_daily WHERE date = ?", (today_str,)).fetchone()
+    # 本周
+    this_monday = (datetime.now() - timedelta(days=datetime.now().weekday())).strftime("%Y-%m-%d")
+    week = db.execute("SELECT COALESCE(SUM(total_cost_usd),0) as cost FROM token_daily WHERE date >= ?", (this_monday,)).fetchone()
+    # 本月
+    month_start = datetime.now().strftime("%Y-%m-01")
+    month = db.execute("SELECT COALESCE(SUM(total_cost_usd),0) as cost FROM token_daily WHERE date >= ?", (month_start,)).fetchone()
+    db.close()
+    return {
+        "total_cost": round(total["cost"], 2),
+        "total_messages": total["msgs"],
+        "total_days": total["days"],
+        "today_cost": round(today["cost"], 2) if today else 0,
+        "week_cost": round(week["cost"], 2),
+        "month_cost": round(month["cost"], 2)
+    }
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -197,6 +269,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "/api/projects": lambda: api_projects(params.get("date", [today])[0]),
             "/api/report": lambda: api_report(params.get("date", [today])[0]),
             "/api/weekly": lambda: api_weekly_compare(),
+            "/api/tokens": lambda: api_tokens(params.get("date", [today])[0]),
+            "/api/token-trend": lambda: api_token_trend(int(params.get("days", ["7"])[0])),
+            "/api/models": lambda: api_model_breakdown(params.get("date", [today])[0]),
+            "/api/top-sessions": lambda: api_top_sessions(int(params.get("limit", ["10"])[0])),
+            "/api/cost-summary": lambda: api_cost_summary(),
         }
 
         if parsed.path in api_routes:

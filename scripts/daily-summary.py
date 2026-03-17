@@ -217,6 +217,18 @@ def generate_daily_report(date_str=None):
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
+    # 先同步token数据
+    try:
+        token_analyzer = os.path.join(os.path.dirname(__file__), '..', 'src', 'token_analyzer.py')
+        if os.path.exists(token_analyzer):
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("token_analyzer", token_analyzer)
+            ta = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(ta)
+            ta.sync_all()
+    except Exception as e:
+        print(f"Token同步跳过: {e}")
+
     report = f"# 日报 {date_str}\n\n"
 
     # Claude Code 会话统计
@@ -235,6 +247,20 @@ def generate_daily_report(date_str=None):
             report += "**项目分布**: "
             report += " | ".join(f"{p}({c}次)" for p, c in stats['project_distribution'])
             report += "\n\n"
+
+    # Token 成本摘要
+    try:
+        db_t = sqlite3.connect(EFFICIENCY_DB)
+        token_row = db_t.execute(
+            "SELECT total_cost_usd, message_count, total_input, total_output FROM token_daily WHERE date = ?",
+            (date_str,)
+        ).fetchone()
+        if token_row and token_row[1] > 0:
+            report += f"## Token 成本\n\n"
+            report += f"**成本**: ${token_row[0]:.2f} | **消息数**: {token_row[1]} | **Input**: {token_row[2]:,} | **Output**: {token_row[3]:,}\n\n"
+        db_t.close()
+    except Exception:
+        pass
 
     all_categories = {}
     project_reports = []
