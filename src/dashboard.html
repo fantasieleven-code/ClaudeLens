@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engineering Efficiency</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  body { font-family: 'Inter', system-ui, sans-serif; background: #0B1120; color: #E2E8F0; }
+  .card { background: #151F32; border: 1px solid #1E293B; border-radius: 12px; }
+  .card-glow { box-shadow: 0 0 0 1px rgba(59,130,246,0.1), 0 4px 24px rgba(0,0,0,0.3); }
+  .score-ring { background: conic-gradient(#3B82F6 calc(var(--pct) * 3.6deg), #1E293B 0deg); }
+  .timeline-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .timeline-line { width: 2px; background: #1E293B; }
+  .fade-in { animation: fadeIn 0.4s ease-out; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .markdown-body h1 { font-size: 1.25rem; font-weight: 700; margin: 1rem 0 0.5rem; color: #F1F5F9; }
+  .markdown-body h2 { font-size: 1.1rem; font-weight: 600; margin: 0.8rem 0 0.4rem; color: #CBD5E1; }
+  .markdown-body h3 { font-size: 1rem; font-weight: 500; margin: 0.6rem 0 0.3rem; color: #94A3B8; }
+  .markdown-body p, .markdown-body li { color: #94A3B8; line-height: 1.6; }
+  .markdown-body code { background: #1E293B; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+  .markdown-body table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; }
+  .markdown-body th, .markdown-body td { padding: 6px 10px; border: 1px solid #1E293B; text-align: left; font-size: 0.85rem; }
+  .markdown-body th { background: #1E293B; color: #CBD5E1; }
+  .markdown-body ul { list-style: disc; padding-left: 1.5rem; }
+  .markdown-body blockquote { border-left: 3px solid #3B82F6; padding-left: 1rem; color: #64748B; }
+  .tool-bar { height: 24px; border-radius: 4px; min-width: 4px; transition: width 0.6s ease; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0B1120; }
+  ::-webkit-scrollbar-thumb { background: #1E293B; border-radius: 3px; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<header class="sticky top-0 z-50 border-b border-slate-800" style="background: rgba(11,17,32,0.9); backdrop-filter: blur(12px);">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center">
+        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+      <h1 class="text-lg font-semibold text-slate-100">Engineering Efficiency</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <input type="date" id="dateSelect" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500">
+      <button onclick="refresh()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-400 transition">
+        刷新
+      </button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- 核心指标: 产品贡献度 + 辅助KPI -->
+  <div class="grid grid-cols-1 md:grid-cols-12 gap-4 fade-in">
+    <!-- 产品贡献度大卡 -->
+    <div class="md:col-span-4 card card-glow p-6 flex flex-col items-center justify-center">
+      <div class="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">产品贡献度</div>
+      <div class="relative w-28 h-28">
+        <div class="score-ring w-full h-full rounded-full flex items-center justify-center" style="--pct: 0" id="scoreRing">
+          <div class="w-22 h-22 rounded-full flex items-center justify-center" style="width:88px;height:88px;background:#151F32;">
+            <span id="scoreValue" class="text-3xl font-bold text-blue-400">--</span>
+            <span class="text-sm text-slate-500">%</span>
+          </div>
+        </div>
+      </div>
+      <div class="text-xs text-slate-500 mt-3">直接产出占比</div>
+    </div>
+
+    <!-- 4个辅助KPI -->
+    <div class="md:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">会话</div>
+        <div id="kpiSessions" class="text-2xl font-bold text-slate-200">--</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">工具调用</div>
+        <div id="kpiTools" class="text-2xl font-bold text-slate-200">--</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">提交</div>
+        <div id="kpiCommits" class="text-2xl font-bold text-slate-200">--</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-xs text-slate-500 mb-1">变更文件</div>
+        <div id="kpiFiles" class="text-2xl font-bold text-slate-200">--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 周对比条 -->
+  <div id="weeklyCompare" class="card p-4 fade-in" style="display:none;">
+    <div class="flex items-center gap-4 text-sm">
+      <span class="text-slate-500">本周 vs 上周:</span>
+      <span id="weekSessions" class="text-slate-300"></span>
+      <span class="text-slate-600">|</span>
+      <span id="weekTools" class="text-slate-300"></span>
+      <span class="text-slate-600">|</span>
+      <span id="weekCommits" class="text-slate-300"></span>
+    </div>
+  </div>
+
+  <!-- 图表行: 工具分布 + 趋势 -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 fade-in">
+    <!-- 工具使用分布 (水平条形图) -->
+    <div class="card p-5">
+      <h3 class="text-sm font-medium text-slate-400 mb-4">工具使用分布</h3>
+      <div id="toolBars" class="space-y-2">
+        <div class="text-sm text-slate-600">暂无数据</div>
+      </div>
+    </div>
+
+    <!-- 7天趋势 -->
+    <div class="card p-5">
+      <h3 class="text-sm font-medium text-slate-400 mb-4">近7天趋势</h3>
+      <canvas id="trendChart" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- 时间线 + 项目分布 -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 fade-in">
+    <!-- 时间线 -->
+    <div class="card p-5">
+      <h3 class="text-sm font-medium text-slate-400 mb-4">今日时间线</h3>
+      <div id="timeline" class="space-y-0 max-h-80 overflow-y-auto pr-2">
+        <div class="text-sm text-slate-600">暂无数据</div>
+      </div>
+    </div>
+
+    <!-- 项目分布 -->
+    <div class="card p-5">
+      <h3 class="text-sm font-medium text-slate-400 mb-4">项目分布</h3>
+      <div id="projectBars" class="space-y-2">
+        <div class="text-sm text-slate-600">暂无数据</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 贡献度分类 -->
+  <div id="contributionSection" class="card p-5 fade-in" style="display:none;">
+    <h3 class="text-sm font-medium text-slate-400 mb-4">贡献度分类</h3>
+    <div id="contributionBars" class="space-y-2"></div>
+  </div>
+
+  <!-- 日报内容 -->
+  <div class="card p-5 fade-in">
+    <h3 class="text-sm font-medium text-slate-400 mb-4">日报详情</h3>
+    <div id="reportContent" class="markdown-body text-sm">
+      <div class="text-slate-600">暂无日报</div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="text-center text-xs text-slate-700 py-6">
+  Engineering Efficiency Dashboard · 数据来源: ~/.claude/efficiency.db
+</footer>
+
+<script>
+const TOOL_COLORS = {
+  'Bash': '#3B82F6', 'Read': '#10B981', 'Edit': '#F59E0B', 'Write': '#EF4444',
+  'Grep': '#8B5CF6', 'Glob': '#EC4899', 'Agent': '#06B6D4', 'WebFetch': '#F97316',
+  'WebSearch': '#14B8A6', 'Skill': '#A855F7'
+};
+const DEFAULT_COLOR = '#64748B';
+
+let trendChart = null;
+
+function getColor(tool) {
+  return TOOL_COLORS[tool] || DEFAULT_COLOR;
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const t = ts.includes('T') ? ts.split('T')[1] : ts;
+  return t.substring(0, 5);
+}
+
+function delta(curr, prev, label) {
+  if (prev === 0 && curr === 0) return `${label}: 0`;
+  if (prev === 0) return `${label}: ${curr} (+${curr})`;
+  const diff = curr - prev;
+  const pct = Math.round((diff / prev) * 100);
+  const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+  const color = diff > 0 ? 'text-emerald-400' : diff < 0 ? 'text-red-400' : 'text-slate-400';
+  return `${label}: <span class="${color}">${curr} ${arrow}${Math.abs(pct)}%</span>`;
+}
+
+async function fetchJSON(url) {
+  const resp = await fetch(url);
+  return resp.json();
+}
+
+async function refresh() {
+  const date = document.getElementById('dateSelect').value;
+
+  const [summary, tools, timeline, trend, projects, report, weekly] = await Promise.all([
+    fetchJSON(`/api/summary?date=${date}`),
+    fetchJSON(`/api/tools?date=${date}`),
+    fetchJSON(`/api/timeline?date=${date}`),
+    fetchJSON(`/api/trend?days=7`),
+    fetchJSON(`/api/projects?date=${date}`),
+    fetchJSON(`/api/report?date=${date}`),
+    fetchJSON(`/api/weekly`)
+  ]);
+
+  // KPI
+  document.getElementById('scoreValue').textContent = summary.productivity_pct;
+  document.getElementById('scoreRing').style.setProperty('--pct', summary.productivity_pct);
+  document.getElementById('kpiSessions').textContent = summary.sessions;
+  document.getElementById('kpiTools').textContent = summary.tool_uses;
+  document.getElementById('kpiCommits').textContent = summary.commits;
+  document.getElementById('kpiFiles').textContent = summary.files_changed;
+
+  // 周对比
+  const wc = document.getElementById('weeklyCompare');
+  if (weekly.this_week.sessions > 0 || weekly.last_week.sessions > 0) {
+    wc.style.display = 'block';
+    document.getElementById('weekSessions').innerHTML = delta(weekly.this_week.sessions, weekly.last_week.sessions, '会话');
+    document.getElementById('weekTools').innerHTML = delta(weekly.this_week.tool_uses, weekly.last_week.tool_uses, '工具');
+    document.getElementById('weekCommits').innerHTML = delta(weekly.this_week.commits, weekly.last_week.commits, '提交');
+  } else {
+    wc.style.display = 'none';
+  }
+
+  // 工具分布（水平条形图）
+  const toolContainer = document.getElementById('toolBars');
+  if (tools.length > 0) {
+    const maxCount = Math.max(...tools.map(t => t.count));
+    toolContainer.innerHTML = tools.map(t => {
+      const pct = Math.max((t.count / maxCount) * 100, 3);
+      const color = getColor(t.tool);
+      return `<div class="flex items-center gap-3">
+        <div class="w-16 text-xs text-slate-400 text-right shrink-0">${t.tool}</div>
+        <div class="flex-1 bg-slate-800 rounded overflow-hidden">
+          <div class="tool-bar" style="width:${pct}%;background:${color}"></div>
+        </div>
+        <div class="w-8 text-xs text-slate-500 text-right">${t.count}</div>
+      </div>`;
+    }).join('');
+  } else {
+    toolContainer.innerHTML = '<div class="text-sm text-slate-600">暂无数据</div>';
+  }
+
+  // 趋势图
+  renderTrend(trend);
+
+  // 时间线
+  const tlContainer = document.getElementById('timeline');
+  if (timeline.length > 0) {
+    // 按时间分组显示
+    let html = '';
+    let lastHour = '';
+    timeline.forEach((item, i) => {
+      const hour = formatTime(item.time);
+      const color = getColor(item.tool);
+      const showHour = hour !== lastHour;
+      lastHour = hour;
+      html += `<div class="flex items-start gap-3 py-1">
+        <div class="w-10 text-xs text-slate-500 text-right pt-0.5 shrink-0">${showHour ? hour : ''}</div>
+        <div class="flex flex-col items-center">
+          <div class="timeline-dot shrink-0" style="background:${color}"></div>
+          ${i < timeline.length - 1 ? '<div class="timeline-line flex-1" style="min-height:12px"></div>' : ''}
+        </div>
+        <div class="text-xs text-slate-400 pt-0.5">
+          <span style="color:${color}">${item.tool}</span>
+          <span class="text-slate-600 ml-1">${item.session}</span>
+        </div>
+      </div>`;
+    });
+    tlContainer.innerHTML = html;
+  } else {
+    tlContainer.innerHTML = '<div class="text-sm text-slate-600">暂无数据</div>';
+  }
+
+  // 项目分布
+  const projContainer = document.getElementById('projectBars');
+  if (projects.length > 0) {
+    const maxTools = Math.max(...projects.map(p => p.tools));
+    projContainer.innerHTML = projects.map(p => {
+      const pct = Math.max((p.tools / maxTools) * 100, 3);
+      return `<div class="flex items-center gap-3">
+        <div class="w-28 text-xs text-slate-400 text-right shrink-0 truncate">${p.project}</div>
+        <div class="flex-1 bg-slate-800 rounded overflow-hidden">
+          <div class="tool-bar" style="width:${pct}%;background:#3B82F6"></div>
+        </div>
+        <div class="w-12 text-xs text-slate-500 text-right">${p.tools}次</div>
+      </div>`;
+    }).join('');
+  } else {
+    projContainer.innerHTML = '<div class="text-sm text-slate-600">暂无数据</div>';
+  }
+
+  // 贡献度分类
+  const cs = summary.contribution_scores;
+  const csSection = document.getElementById('contributionSection');
+  if (cs && Object.keys(cs).length > 0) {
+    csSection.style.display = 'block';
+    const sorted = Object.entries(cs).sort((a, b) => b[1].percentage - a[1].percentage);
+    const catColors = {'产品开发':'#3B82F6','Bug修复':'#F59E0B','内容生产':'#10B981','基础设施':'#8B5CF6','调研探索':'#06B6D4','其他':'#64748B'};
+    document.getElementById('contributionBars').innerHTML = sorted.map(([cat, info]) => {
+      const color = catColors[cat] || '#64748B';
+      return `<div class="flex items-center gap-3">
+        <div class="w-20 text-xs text-slate-400 text-right shrink-0">${cat}</div>
+        <div class="flex-1 bg-slate-800 rounded overflow-hidden">
+          <div class="tool-bar" style="width:${info.percentage}%;background:${color}"></div>
+        </div>
+        <div class="w-16 text-xs text-slate-500 text-right">${info.percentage}% (${info.items})</div>
+      </div>`;
+    }).join('');
+  } else {
+    csSection.style.display = 'none';
+  }
+
+  // 日报
+  const rc = document.getElementById('reportContent');
+  if (report.content) {
+    rc.innerHTML = marked.parse(report.content);
+  } else {
+    rc.innerHTML = '<div class="text-slate-600">暂无日报 — 运行 python3 scripts/daily-summary.py 生成</div>';
+  }
+}
+
+function renderTrend(data) {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date.substring(5)),
+      datasets: [{
+        label: '工具调用',
+        data: data.map(d => d.tool_uses),
+        borderColor: '#3B82F6',
+        backgroundColor: 'rgba(59,130,246,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#3B82F6'
+      }, {
+        label: '提交',
+        data: data.map(d => d.commits),
+        borderColor: '#10B981',
+        backgroundColor: 'rgba(16,185,129,0.1)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4,
+        pointBackgroundColor: '#10B981'
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          labels: { color: '#94A3B8', font: { size: 11 } }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748B', font: { size: 10 } },
+          grid: { color: 'rgba(30,41,59,0.5)' }
+        },
+        y: {
+          ticks: { color: '#64748B', font: { size: 10 } },
+          grid: { color: 'rgba(30,41,59,0.5)' },
+          beginAtZero: true
+        }
+      }
+    }
+  });
+}
+
+// 初始化
+document.addEventListener('DOMContentLoaded', () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('dateSelect').value = today;
+  refresh();
+});
+
+// 日期变化自动刷新
+document.getElementById('dateSelect')?.addEventListener('change', refresh);
+</script>
+
+</body>
+</html>

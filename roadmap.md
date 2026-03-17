@@ -21,18 +21,31 @@
 
 ---
 
-## Phase 2: 可视化面板
+## Phase 2: 可视化面板（已完成）
 
-### 2.1 Datasette 基础面板
-- [ ] 安装 datasette + datasette-vega（图表插件）
-- [ ] 创建预定义查询：每日工具使用分布、会话时长趋势、项目活跃度
-- [ ] 配置 `src/metadata.yml`（表描述、查询别名）
-- [ ] launchd 自动启动 datasette 服务（localhost:8001）
+> UIUX专家评审后实施，弃用Datasette改为自研Dashboard
 
-### 2.2 自定义视图
-- [ ] 周报聚合视图（按周汇总贡献度）
-- [ ] 项目维度分析（哪个项目花时间最多）
+### 2.1 自研Dashboard（替代Datasette）
+- [x] `src/dashboard.py` — Python HTTP server，7个API端点
+- [x] `src/dashboard.html` — 单页面Dashboard，Chart.js + Tailwind CSS
+- [x] 深色主题，WCAG AA对比度
+- [x] 响应式布局（移动端适配）
+- [x] 启动: `python3 src/dashboard.py [port]` → localhost:8001
+
+### 2.2 Dashboard功能
+- [x] 产品贡献度环形大卡（核心指标突出）
+- [x] 4个辅助KPI卡片（会话/工具/提交/文件）
+- [x] 本周vs上周对比条（带涨跌箭头）
+- [x] 工具使用分布（水平条形图，按次数排序）
+- [x] 近7天趋势折线图（工具调用+提交）
+- [x] 今日时间线视图（按时间顺序展示工作流）
+- [x] 项目分布条形图
+- [x] 贡献度分类条形图
+- [x] 日报Markdown渲染
+
+### 2.3 待优化
 - [ ] 工具使用热力图（什么时段用什么工具最多）
+- [ ] launchd自动启动dashboard服务
 
 ---
 
