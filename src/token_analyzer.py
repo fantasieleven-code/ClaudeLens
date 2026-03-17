@@ -90,8 +90,8 @@ def calc_cost(model, input_t, output_t, cache_write_t, cache_read_t):
 
 def extract_project_from_path(filepath):
     """从JSONL路径提取项目名
-    路径格式: ~/.claude/projects/-Users-stevezhu-Projects-XXX/session.jsonl
-    或: ~/.claude/projects/-Users-stevezhu/session.jsonl (全局会话)
+    路径格式: ~/.claude/projects/-Users-<username>-Projects-XXX/session.jsonl
+    或: ~/.claude/projects/-Users-<username>/session.jsonl (全局会话)
     """
     parts = filepath.split("/")
     for i, p in enumerate(parts):

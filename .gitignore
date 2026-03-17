@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+*.db
+*.sqlite
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+
+# Callout MCP
+.callout/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
