@@ -7,6 +7,16 @@
         "customer"
       ],
       "findingSummary": "(findings will be filled by the AI after review execution)"
+    },
+    {
+      "date": "2026-03-17",
+      "perspectives": [
+        "cto",
+        "product",
+        "security",
+        "customer"
+      ],
+      "findingSummary": "(findings will be filled by the AI after review execution)"
     }
   ]
 }

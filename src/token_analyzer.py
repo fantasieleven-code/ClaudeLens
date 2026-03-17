@@ -89,18 +89,21 @@ def calc_cost(model, input_t, output_t, cache_write_t, cache_read_t):
 
 
 def extract_project_from_path(filepath):
-    """从JSONL路径提取项目名"""
-    # ~/.claude/projects/-Users-stevezhu-Projects-XXX/session.jsonl
+    """从JSONL路径提取项目名
+    路径格式: ~/.claude/projects/-Users-stevezhu-Projects-XXX/session.jsonl
+    或: ~/.claude/projects/-Users-stevezhu/session.jsonl (全局会话)
+    """
     parts = filepath.split("/")
     for i, p in enumerate(parts):
         if p == "projects" and i + 1 < len(parts):
             proj_dir = parts[i + 1]
-            # 取最后一个有意义的段
-            segments = proj_dir.split("-")
-            # 找Projects后面的部分
-            for j, s in enumerate(segments):
-                if s == "Projects" and j + 1 < len(segments):
-                    return "-".join(segments[j + 1:])
+            # 尝试从目录名解析项目名
+            # 格式: -Users-username-Projects-ProjectName
+            if "-Projects-" in proj_dir:
+                return proj_dir.split("-Projects-", 1)[1]
+            # 格式: -Users-username (全局会话)
+            if proj_dir.startswith("-Users-"):
+                return "global"
             return proj_dir
     return "unknown"
 

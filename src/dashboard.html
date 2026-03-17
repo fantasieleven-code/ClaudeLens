@@ -266,7 +266,10 @@ async function fetchJSON(url) {
 
 async function refresh() {
   const date = document.getElementById('dateSelect').value;
+  // 加载状态
+  document.querySelectorAll('.card').forEach(c => c.style.opacity = '0.5');
 
+  try {
   const [summary, tools, timeline, trend, projects, report, weekly, tokens, costTrend, models, topSessions, costSummary] = await Promise.all([
     fetchJSON(`/api/summary?date=${date}`),
     fetchJSON(`/api/tools?date=${date}`),
@@ -469,6 +472,11 @@ async function refresh() {
       }).join('') + '</div>';
   } else {
     ts.innerHTML = '<div class="text-sm text-slate-600">暂无数据</div>';
+  }
+
+  } finally {
+    // 恢复透明度
+    document.querySelectorAll('.card').forEach(c => c.style.opacity = '1');
   }
 }
 

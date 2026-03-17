@@ -10,9 +10,11 @@ Claude Code Session
   ↓ (Hooks: SessionStart/PostToolUse/SessionEnd)
 hooks/session-tracker.sh → SQLite (efficiency.db)
   ↓
-scripts/daily-summary.py → 日报 Markdown
+src/token_analyzer.py → JSONL解析 → token_usage/token_daily表
   ↓
-src/dashboard.py (Datasette) → 浏览器可视化
+scripts/daily-summary.py → 日报 Markdown（含token成本）
+  ↓
+src/dashboard.py + dashboard.html → 浏览器可视化Dashboard
 ```
 
 ## 核心组件
@@ -21,7 +23,8 @@ src/dashboard.py (Datasette) → 浏览器可视化
 |------|------|------|
 | Hooks采集器 | `hooks/session-tracker.sh` | 实时采集Claude Code事件→SQLite |
 | 日报生成器 | `scripts/daily-summary.py` | 每日23:30生成日报（从~/.claude迁移） |
-| 数据面板 | `src/dashboard.py` | Datasette配置，浏览器查看历史数据 |
+| Token分析 | `src/token_analyzer.py` | 解析JSONL→token用量+成本计算 |
+| Dashboard | `src/dashboard.py` + `dashboard.html` | API server + 单页面可视化 |
 
 ## 数据库
 
